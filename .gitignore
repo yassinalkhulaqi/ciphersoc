@@ -1,0 +1,11 @@
+backend/.env
+backend/storage/*.key
+backend/database/database.sqlite
+frontend/dist/
+frontend/.env
+agent/state/
+agent/spool/
+node_modules/
+vendor/
+*.log
+.env

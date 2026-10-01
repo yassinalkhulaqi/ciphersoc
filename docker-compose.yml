@@ -1,0 +1,89 @@
+# cipherSOC — full SOC stack
+name: ciphersoc
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ciphersoc
+      POSTGRES_USER: ciphersoc
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ciphersoc-secret}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U ciphersoc"], interval: 10s, timeout: 5s, retries: 5 }
+    networks: [soc]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 10s, timeout: 5s, retries: 5 }
+    networks: [soc]
+
+  backend:
+    build: { context: ./backend }
+    depends_on: { postgres: { condition: service_healthy }, redis: { condition: service_healthy } }
+    environment:
+      APP_NAME: cipherSOC
+      APP_ENV: production
+      APP_KEY: ${APP_KEY:?set APP_KEY (php artisan key:generate --show)}
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ciphersoc
+      DB_USERNAME: ciphersoc
+      DB_PASSWORD: ${DB_PASSWORD:-ciphersoc-secret}
+      REDIS_HOST: redis
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      SESSION_DRIVER: redis
+      BROADCAST_CONNECTION: reverb
+      REVERB_APP_ID: ${REVERB_APP_ID:-ciphersoc}
+      REVERB_APP_KEY: ${REVERB_APP_KEY:-ciphersoc-key}
+      REVERB_APP_SECRET: ${REVERB_APP_SECRET:-ciphersoc-secret}
+      REVERB_HOST: websocket
+      REVERB_PORT: 8080
+      REVERB_SCHEME: http
+      CIPHERSOC_AGENT_ENROLLMENT_TOKEN: ${CIPHERSOC_AGENT_ENROLLMENT_TOKEN:?set enrollment token}
+      VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
+      ABUSEIPDB_API_KEY: ${ABUSEIPDB_API_KEY:-}
+      OTX_API_KEY: ${OTX_API_KEY:-}
+    volumes: [backend-storage:/app/storage]
+    networks: [soc]
+
+  websocket:
+    build: { context: ./backend }
+    command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
+    depends_on: [backend]
+    expose: ["8080"]
+    networks: [soc]
+
+  queue-worker:
+    build: { context: ./backend }
+    command: ["php", "artisan", "queue:work", "redis", "--sleep=3", "--tries=3", "--timeout=120"]
+    depends_on: { redis: { condition: service_healthy }, backend: { condition: service_started } }
+    volumes: [backend-storage:/app/storage]
+    networks: [soc]
+
+  scheduler:
+    build: { context: ./backend }
+    command: ["sh", "-c", "while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done"]
+    depends_on: [backend]
+    networks: [soc]
+
+  frontend:
+    build: { context: ./frontend, args: { VITE_API_URL: /api/v1 } }
+    networks: [soc]
+
+  nginx:
+    image: nginx:alpine
+    depends_on: [backend, frontend, websocket]
+    ports: ["${NGINX_PORT:-8081}:80"]
+    volumes: ["./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro"]
+    networks: [soc]
+
+volumes:
+  pgdata:
+  redisdata:
+  backend-storage:
+
+networks:
+  soc: { driver: bridge }
