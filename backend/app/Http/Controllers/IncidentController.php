@@ -104,6 +104,18 @@ class IncidentController extends Controller
         $data = $r->validate(['title' => 'required|string|max:255', 'detail' => 'nullable|string', 'entry_type' => 'sometimes|in:note,evidence,status,containment,custom']);
         $t = IncidentTimeline::create(['incident_id' => $incident->id, 'entry_type' => $data['entry_type'] ?? 'note', 'title' => $data['title'], 'detail' => $data['detail'] ?? null, 'created_by' => $r->user()->id]);
 
-        return ApiResponse::ok($t,'Timeline entry added');
+        return ApiResponse::ok($t, 'Timeline entry added');
+    }
+
+    public function escalate(Request $r, Incident $incident)
+    {
+        $data = $r->validate(['priority' => 'sometimes|in:p1,p2,p3,p4', 'note' => 'nullable|string|max:2000']);
+        $old = $incident->status;
+        $incident->update(['status' => 'containment', 'priority' => $data['priority'] ?? 'p1']);
+        IncidentTimeline::create(['incident_id' => $incident->id, 'entry_type' => 'status', 'title' => "Escalated {$old} → containment", 'detail' => $data['note'] ?? null, 'created_by' => $r->user()->id]);
+        AuditLogger::log('incident.escalate', 'incident', $incident->id, ['status' => $old], $incident->fresh()->toArray());
+        Broadcasts::fire(new IncidentChanged($incident->fresh(), 'IncidentEscalated'));
+
+        return ApiResponse::ok($incident->fresh(), 'Incident escalated to containment');
     }
 }

@@ -3,6 +3,7 @@
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AlertController;
 use App\Http\Controllers\ApiDocsController;
+use App\Http\Controllers\AssetController;
 use App\Http\Controllers\AuditController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CorrelationController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\HealthController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\IngestController;
 use App\Http\Controllers\IocController;
+use App\Http\Controllers\LogStreamController;
 use App\Http\Controllers\MetricsController;
 use App\Http\Controllers\MitreController;
 use App\Http\Controllers\NotifyController;
@@ -36,6 +38,7 @@ Route::prefix('v1')->group(function () {
 // Auth
 Route::prefix('v1/auth')->middleware('throttle:30,1')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/register', [AuthController::class, 'register']);
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
     Route::middleware('auth:sanctum')->group(function () {
@@ -46,18 +49,26 @@ Route::prefix('v1/auth')->middleware('throttle:30,1')->group(function () {
         Route::get('/tokens', [AuthController::class, 'tokens']);
         Route::post('/tokens', [AuthController::class, 'createToken']);
         Route::delete('/tokens/{id}', [AuthController::class, 'revokeToken']);
+        Route::get('/mfa/setup', [AuthController::class, 'mfaSetup']);
+        Route::post('/mfa/enable', [AuthController::class, 'mfaEnable']);
+        Route::post('/mfa/disable', [AuthController::class, 'mfaDisable']);
     });
 });
 
 // Authenticated SOC API
 Route::prefix('v1')->middleware(['auth:sanctum', 'throttle:300,1'])->group(function () {
     Route::get('/dashboard/overview', [DashboardController::class, 'overview'])->middleware('perm:dashboard.view');
+    Route::get('/dashboard/kpis', [DashboardController::class, 'kpis'])->middleware('perm:dashboard.view');
+    Route::get('/dashboard/timeline', [DashboardController::class, 'timeline'])->middleware('perm:dashboard.view');
     Route::get('/events', [EventController::class, 'index'])->middleware('perm:events.view');
     Route::get('/events/{event}', [EventController::class, 'show'])->middleware('perm:events.view');
+    Route::get('/logs', [EventController::class, 'index'])->middleware('perm:events.view');
+    Route::get('/logs/stream', [LogStreamController::class, 'stream'])->middleware('perm:events.view');
     Route::get('/alerts', [AlertController::class, 'index'])->middleware('perm:alerts.view');
     Route::get('/alerts/{alert}', [AlertController::class, 'show'])->middleware('perm:alerts.view');
     Route::patch('/alerts/{alert}', [AlertController::class, 'update'])->middleware('perm:alerts.update');
     Route::post('/alerts/{alert}/assign', [AlertController::class, 'assign'])->middleware('perm:alerts.assign');
+    Route::post('/alerts/{alert}/acknowledge', [AlertController::class, 'acknowledge'])->middleware('perm:alerts.update');
     Route::post('/alerts/bulk', [AlertController::class, 'bulk'])->middleware('perm:alerts.update');
     Route::post('/alerts/{alert}/comments', [AlertController::class, 'comment'])->middleware('perm:alerts.update');
     Route::get('/incidents', [IncidentController::class, 'index'])->middleware('perm:incidents.view');
@@ -68,6 +79,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle:300,1'])->group(funct
     Route::post('/incidents/{incident}/iocs', [IncidentController::class, 'attachIocs'])->middleware('perm:incidents.update');
     Route::post('/incidents/{incident}/comments', [IncidentController::class, 'comment'])->middleware('perm:incidents.update');
     Route::post('/incidents/{incident}/timeline', [IncidentController::class, 'timeline'])->middleware('perm:incidents.update');
+    Route::post('/incidents/{incident}/escalate', [IncidentController::class, 'escalate'])->middleware('perm:incidents.update');
+    Route::get('/assets', [AssetController::class, 'index'])->middleware('perm:agents.view');
+    Route::post('/assets', [AssetController::class, 'store'])->middleware('perm:agents.manage');
+    Route::get('/assets/{asset}', [AssetController::class, 'show'])->middleware('perm:agents.view');
+    Route::get('/assets/{asset}/vulns', [AssetController::class, 'vulns'])->middleware('perm:agents.view');
+    Route::get('/network/topology', [AssetController::class, 'topology'])->middleware('perm:agents.view');
     Route::get('/rules', [RuleController::class, 'index'])->middleware('perm:rules.view');
     Route::post('/rules', [RuleController::class, 'store'])->middleware('perm:rules.create');
     Route::post('/rules/import-sigma', [RuleController::class, 'importSigma'])->middleware('perm:rules.create');
@@ -107,6 +124,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'throttle:300,1'])->group(funct
     Route::patch('/users/{user}', [UserController::class, 'update'])->middleware('perm:users.manage');
     Route::get('/roles', [UserController::class, 'roles'])->middleware('perm:users.view');
     Route::get('/audit-logs', [AuditController::class, 'index'])->middleware('perm:audit.view');
+    Route::get('/audit', [AuditController::class, 'index'])->middleware('perm:audit.view');
     Route::get('/reports', [ReportController::class, 'index'])->middleware('perm:reports.view');
     Route::post('/reports', [ReportController::class, 'store'])->middleware('perm:reports.generate');
     Route::get('/reports/{report}', [ReportController::class, 'show'])->middleware('perm:reports.view');

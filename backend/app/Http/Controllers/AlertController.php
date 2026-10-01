@@ -138,4 +138,14 @@ class AlertController extends Controller
 
         return ApiResponse::ok($c->load('user'), 'Comment added');
     }
+
+    public function acknowledge(Request $r, Alert $alert)
+    {
+        $alert->update(['status' => 'acknowledged', 'acknowledged_at' => now(), 'assignee_id' => $alert->assignee_id ?? $r->user()->id]);
+        AlertStatusHistory::create(['alert_id' => $alert->id, 'from_status' => 'new', 'to_status' => 'acknowledged', 'changed_by' => $r->user()->id, 'note' => 'acknowledged via API']);
+        AuditLogger::log('alert.acknowledge', 'alert', $alert->id);
+        Broadcasts::fire(new AlertUpdated($alert->fresh(), ['status' => 'acknowledged']));
+
+        return ApiResponse::ok($alert->fresh(), 'Alert acknowledged');
+    }
 }

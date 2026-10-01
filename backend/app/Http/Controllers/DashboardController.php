@@ -14,6 +14,47 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
+    public function kpis(Request $r)
+    {
+        $data = $this->overview($r)->getData(true)['data'];
+        $alerts24 = $data['totals']['alerts'] ?? 0;
+        $critical = $data['totals']['critical'] ?? 0;
+        // MTTR: avg acknowledge time for resolved alerts in window (hours).
+        try {
+            $mttr = Alert::whereNotNull('acknowledged_at')->whereNotNull('resolved_at')->limit(200)->get()
+                ->map(fn ($a) => $a->acknowledged_at->diffInMinutes($a->resolved_at) / 60)->avg();
+        } catch (\Throwable) {
+            $mttr = null;
+        }
+        $total = max(1, ($data['totals']['alerts'] ?? 0));
+        $fp = 0;
+        try {
+            $fp = 100 * Alert::where('status', 'false_positive')->count() / $total;
+        } catch (\Throwable) {
+        }
+        $spark = collect($data['alerts_over_time'] ?? [])->pluck('c')->take(24)->values();
+
+        return ApiResponse::ok([
+            ['key' => 'alerts_24h', 'label' => 'Alerts 24h', 'value' => $alerts24, 'delta' => null, 'spark' => $spark],
+            ['key' => 'critical_open', 'label' => 'Critical Open', 'value' => $critical, 'delta' => null, 'spark' => $spark],
+            ['key' => 'mttr_hours', 'label' => 'MTTR (h)', 'value' => $mttr ? round($mttr, 1) : 0, 'delta' => null, 'spark' => $spark],
+            ['key' => 'fp_pct', 'label' => 'False Positive %', 'value' => round($fp, 1), 'delta' => null, 'spark' => $spark],
+        ]);
+    }
+
+    public function timeline(Request $r)
+    {
+        $hours = min(168, max(1, (int) $r->get('hours', 24)));
+        $to = now();
+        $from = now()->subHours($hours);
+        $driver = DB::connection()->getDriverName();
+        $hourExpr = $driver === 'sqlite' ? "strftime('%Y-%m-%d %H:00', created_at)" : "date_trunc('hour', created_at)";
+        $rows = Alert::whereBetween('created_at', [$from, $to])->select(DB::raw($hourExpr.' h'), DB::raw('count(*) c'))->groupBy('h')->orderBy('h')->limit(168)->get();
+        $sev = Alert::whereBetween('created_at', [$from, $to])->select('severity', DB::raw('count(*) c'))->groupBy('severity')->pluck('c', 'severity');
+
+        return ApiResponse::ok(['hours' => $hours, 'points' => $rows, 'severity' => $sev]);
+    }
+
     public function overview(Request $r)
     {
         $range = $r->get('range', '24h');

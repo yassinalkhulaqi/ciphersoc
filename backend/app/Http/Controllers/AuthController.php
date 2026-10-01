@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\LoginRequest;
+use App\Models\Role;
 use App\Models\User;
+use App\Services\Auth\TotpService;
 use App\Support\ApiResponse;
 use App\Support\AuditLogger;
 use Illuminate\Http\Request;
@@ -20,12 +22,69 @@ class AuthController extends Controller
             AuditLogger::log('login.failed', 'user', null, null, ['email' => $r->email]);
             throw ValidationException::withMessages(['email' => ['Invalid credentials']]);
         }
+        // MFA gate: if enabled, require code before issuing token.
+        if ($user->mfa_enabled) {
+            $code = (string) $r->get('mfa_code', '');
+            if (! (new TotpService)->verify((string) $user->mfa_secret, $code)) {
+                return ApiResponse::error('MFA code required', 401, ['mfa_required' => true]);
+            }
+        }
         $user->update(['last_login_at' => now()]);
         $token = $user->createToken('ciphersoc-ui', ['*'])->plainTextToken;
         AuditLogger::log('login', 'user', $user->id);
         $user->load('roles.permissions');
 
         return ApiResponse::ok(['user' => $this->shape($user), 'token' => $token], 'Authenticated');
+    }
+
+    public function register(Request $r)
+    {
+        $data = $r->validate([
+            'name' => 'required|string|max:255', 'email' => 'required|email|unique:users,email',
+            'password' => 'required|string|min:8|confirmed|regex:/[A-Z]/|regex:/[a-z]/|regex:/[0-9]/',
+        ]);
+        $user = User::create(['name' => $data['name'], 'email' => $data['email'], 'password' => $data['password']]);
+        $viewer = Role::where('name', 'viewer')->first();
+        if ($viewer) {
+            $user->roles()->sync([$viewer->id]);
+        }
+        AuditLogger::log('register', 'user', $user->id, null, ['email' => $user->email]);
+        $token = $user->createToken('ciphersoc-ui', ['*'])->plainTextToken;
+        $user->load('roles.permissions');
+
+        return ApiResponse::ok(['user' => $this->shape($user), 'token' => $token], 'Registered');
+    }
+
+    public function mfaSetup(Request $r, TotpService $totp)
+    {
+        $u = $r->user();
+        if (! $u->mfa_secret) {
+            $u->update(['mfa_secret' => $totp->generateSecret()]);
+        }
+        $u = $u->fresh();
+
+        return ApiResponse::ok(['uri' => $totp->provisioningUri($u->email, (string) $u->mfa_secret), 'enabled' => (bool) $u->mfa_enabled]);
+    }
+
+    public function mfaEnable(Request $r, TotpService $totp)
+    {
+        $data = $r->validate(['code' => 'required|string']);
+        $u = $r->user();
+        if (! $totp->verify((string) $u->mfa_secret, $data['code'])) {
+            return ApiResponse::error('Invalid MFA code', 422);
+        }
+        $u->update(['mfa_enabled' => true]);
+        AuditLogger::log('mfa.enable', 'user', $u->id);
+
+        return ApiResponse::ok(null, 'MFA enabled');
+    }
+
+    public function mfaDisable(Request $r)
+    {
+        $r->user()->update(['mfa_enabled' => false]);
+        AuditLogger::log('mfa.disable', 'user', $r->user()->id);
+
+        return ApiResponse::ok(null, 'MFA disabled');
     }
 
     public function logout(Request $r)
