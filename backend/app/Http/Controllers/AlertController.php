@@ -11,6 +11,7 @@ use App\Models\AuditLog;
 use App\Support\ApiResponse;
 use App\Support\AuditLogger;
 use App\Support\Broadcasts;
+use App\Support\SearchParser;
 use Illuminate\Http\Request;
 
 class AlertController extends Controller
@@ -33,8 +34,22 @@ class AlertController extends Controller
             $q->where('host_id', $r->get('host_id'));
         }
         if ($r->filled('search')) {
-            $s = $r->get('search');
-            $q->where(fn ($qq) => $qq->where('title', 'like', "%$s%")->orWhere('description', 'like', "%$s%"));
+            $parsed = SearchParser::parse($r->get('search'), 'alerts');
+            foreach ($parsed['filters'] as $k => $v) {
+                match ($k) {
+                    'severity', 'status' => $q->where($k, $v),
+                    'hostname' => $q->whereHas('host', fn ($hq) => $hq->where('hostname', $v)),
+                    'source_ip' => $q->where('context->source_ip', $v),
+                    'rule' => $q->whereHas('rule', fn ($rq) => $rq->where('rule_id', $v)),
+                    'mitre' => $q->where('mitre', 'like', '%'.$v.'%'),
+                    'ioc' => $q->where('matched_iocs', 'like', '%'.$v.'%'),
+                    default => null,
+                };
+            }
+            $s = $parsed['free'];
+            if ($s !== '') {
+                $q->where(fn ($qq) => $qq->where('title', 'like', "%$s%")->orWhere('description', 'like', "%$s%"));
+            }
         }
         if ($r->filled('from')) {
             $q->where('created_at', '>=', $r->get('from'));
@@ -122,5 +137,15 @@ class AlertController extends Controller
         AuditLogger::log('alert.comment', 'alert', $alert->id);
 
         return ApiResponse::ok($c->load('user'), 'Comment added');
+    }
+
+    public function acknowledge(Request $r, Alert $alert)
+    {
+        $alert->update(['status' => 'acknowledged', 'acknowledged_at' => now(), 'assignee_id' => $alert->assignee_id ?? $r->user()->id]);
+        AlertStatusHistory::create(['alert_id' => $alert->id, 'from_status' => 'new', 'to_status' => 'acknowledged', 'changed_by' => $r->user()->id, 'note' => 'acknowledged via API']);
+        AuditLogger::log('alert.acknowledge', 'alert', $alert->id);
+        Broadcasts::fire(new AlertUpdated($alert->fresh(), ['status' => 'acknowledged']));
+
+        return ApiResponse::ok($alert->fresh(), 'Alert acknowledged');
     }
 }

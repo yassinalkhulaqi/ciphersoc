@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { getPage } from '../api/client';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { Card, EmptyState, JsonView, Pagination, SeverityBadge, Skeleton } from '../components/ui';
 
 export default function Events() {
@@ -10,12 +11,13 @@ export default function Events() {
   const [eventType, setEventType] = useState('');
   const [severity, setSeverity] = useState('');
   const [search, setSearch] = useState(sp.get('search') ?? '');
+  const debouncedSearch = useDebouncedValue(search, 350);
   const [open, setOpen] = useState<number | null>(null);
-  const { data, isLoading } = useQuery({ queryKey: ['events', page, eventType, severity, search], queryFn: () => getPage<{ id: number; event_type: string; severity: string; message: string; hostname?: string; source_ip?: string; event_timestamp: string; raw_log?: string; normalized?: unknown }>('/events', { page, event_type: eventType || undefined, severity: severity || undefined, search: search || undefined }) });
+  const { data, isLoading } = useQuery({ queryKey: ['events', page, eventType, severity, debouncedSearch], queryFn: () => getPage<{ id: number; event_type: string; severity: string; message: string; hostname?: string; source_ip?: string; event_timestamp: string; raw_log?: string; normalized?: unknown }>('/events', { page, event_type: eventType || undefined, severity: severity || undefined, search: debouncedSearch || undefined }) });
   return (
-    <Card title="Events / Logs" sub="Normalized telemetry — click a row for raw + normalized payload">
+    <Card title="Events / Logs" sub="Normalized telemetry — click a row for raw + normalized payload. Grammar: source_ip: hostname: severity: event_type: + free text.">
       <div className="filters">
-        <input style={{ flex: 1 }} value={search} onChange={(e) => { setSearch(e.target.value); setSp(e.target.value ? { search: e.target.value } : {}); }} placeholder="source_ip:10.0.0.1 hostname:web-01 severity:critical…" />
+        <input style={{ flex: 1 }} value={search} onChange={(e) => { setSearch(e.target.value); setSp(e.target.value ? { search: e.target.value } : {}); setPage(1); }} placeholder="source_ip:10.0.0.1 hostname:web-01 severity:critical failed password…" />
         <select value={eventType} onChange={(e) => setEventType(e.target.value)}><option value="">All types</option><option>authentication_failure</option><option>authentication_success</option><option>powershell_script</option><option>process_creation</option><option>firewall_deny</option><option>dns_query</option></select>
         <select value={severity} onChange={(e) => setSeverity(e.target.value)}><option value="">All severities</option><option>critical</option><option>high</option><option>medium</option><option>low</option><option>info</option></select>
       </div>

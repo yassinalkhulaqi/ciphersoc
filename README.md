@@ -22,12 +22,12 @@ Demo logins (dev/seed only): `admin@ciphersoc.local`, `manager@ciphersoc.local`,
 
 ```bash
 bash scripts/setup.sh
-(cd backend && php artisan serve)          # :8000
-(cd backend && php artisan reverb:start)   # :8080 websockets
-(cd backend && php artisan queue:work)     # jobs: detection/enrichment/reports
-(cd frontend && npm run dev)               # :5173 (VITE_API_URL=http://localhost:8000/api/v1)
+bash scripts/dev.sh                 # backend :8000 + reverb :8080 + queue + frontend :5173
+bash scripts/check.sh               # backend pint+test, frontend lint+vitest, agent pytest, compose config
 CIPHERSOC_URL=http://localhost:8000/api/v1 CIPHERSOC_ENROLLMENT_TOKEN=ciphersoc-enroll-dev-token python -m src.main --once  # from agent/
 ```
+
+Branch: `feat/soc-hardening-roadmap-phase0-1` — see `ROADMAP.md`, `CONTRIBUTING.md`, `SECURITY.md`, `docs/runbook.md`, `docs/onboarding.md`.
 
 ## Repo layout
 
@@ -37,8 +37,8 @@ cipherSOC/
   backend/    Laravel API: auth/RBAC, ingestion, detection, alerts, incidents, IOC, TI, MITRE, agents, audit, reports, WS
   agent/      Python endpoint agent (Linux/Windows) + pytest suite
   nginx/      reverse proxy (API + WS upgrade + SPA)
-  docs/       architecture, api, detection-engine, agent, threat-intelligence, security, deployment, development
-  scripts/    setup.sh, demo.sh
+  docs/       architecture, api, detection-engine, agent, threat-intelligence, security, deployment, development, runbook, onboarding
+  scripts/    setup.sh, demo.sh, check.sh, dev.sh
 ```
 
 ## API (curl)

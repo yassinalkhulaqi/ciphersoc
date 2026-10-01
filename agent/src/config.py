@@ -20,6 +20,9 @@ class AgentConfig:
     syslog: str = "/var/log/syslog"
     agent_version: str = "1.0.0"
     max_retries: int = 5
+    fim_paths: str = ""
+    fim_state_path: str = "./state/fim.json"
+    metrics_enabled: bool = True
 
     @classmethod
     def from_env_and_args(cls, args: list[str] | None = None) -> "AgentConfig":
@@ -33,6 +36,9 @@ class AgentConfig:
         p.add_argument("--spool", default=os.getenv("CIPHERSOC_SPOOL", "./spool/events.jsonl"))
         p.add_argument("--auth-log", default=os.getenv("CIPHERSOC_AUTH_LOG", "/var/log/auth.log"))
         p.add_argument("--syslog", default=os.getenv("CIPHERSOC_SYSLOG", "/var/log/syslog"))
+        p.add_argument("--fim-paths", default=os.getenv("CIPHERSOC_FIM_PATHS", ""), help="comma-separated file watchlist for FIM")
+        p.add_argument("--fim-state", default=os.getenv("CIPHERSOC_FIM_STATE", "./state/fim.json"))
+        p.add_argument("--no-metrics", action="store_true", default=os.getenv("CIPHERSOC_METRICS", "true").lower() in ("0", "false", "no"))
         p.add_argument("--once", action="store_true", help="single collection pass then exit")
         ns = p.parse_args(args)
         if not ns.enrollment_token:
@@ -47,4 +53,7 @@ class AgentConfig:
             spool_path=ns.spool,
             auth_log=ns.auth_log,
             syslog=ns.syslog,
+            fim_paths=ns.fim_paths,
+            fim_state_path=ns.fim_state,
+            metrics_enabled=not ns.no_metrics,
         )

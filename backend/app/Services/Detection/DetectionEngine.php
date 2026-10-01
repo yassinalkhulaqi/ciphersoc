@@ -85,11 +85,16 @@ class DetectionEngine
             return false;
         }
         $got = $e->{$field} ?? ($e->normalized[$field] ?? null);
+        $gotS = (string) $got;
+        $wantS = (string) $want;
         switch ($op) {
-            case 'equals': return strtolower((string) $got) === strtolower((string) $want);
-            case 'not_equals': return strtolower((string) $got) !== strtolower((string) $want);
-            case 'contains': return stripos((string) $got, (string) $want) !== false;
-            case 'contains_b64': return $this->containsBase64((string) $got);
+            case 'equals': return strtolower($gotS) === strtolower($wantS);
+            case 'not_equals': return strtolower($gotS) !== strtolower($wantS);
+            case 'contains': return stripos($gotS, $wantS) !== false;
+            case 'not_contains': return stripos($gotS, $wantS) === false;
+            case 'startswith': return str_starts_with(strtolower($gotS), strtolower($wantS));
+            case 'endswith': return str_ends_with(strtolower($gotS), strtolower($wantS));
+            case 'contains_b64': return $this->containsBase64($gotS);
             case 'in': return in_array(strtolower((string) $got), array_map(fn ($v) => strtolower((string) $v), (array) $want), true);
             case 'regex': try {
                 return (bool) preg_match((string) $want, (string) $got);
@@ -97,8 +102,10 @@ class DetectionEngine
                 return false;
             }
             case 'exists': return $got !== null && $got !== '';
-            case 'gt': return (float) $got > (float) $want;
-            case 'gte': return (float) $got >= (float) $want;
+            case 'gt': return is_numeric($got) && is_numeric($want) && (float) $got > (float) $want;
+            case 'gte': return is_numeric($got) && is_numeric($want) && (float) $got >= (float) $want;
+            case 'lt': return is_numeric($got) && is_numeric($want) && (float) $got < (float) $want;
+            case 'lte': return is_numeric($got) && is_numeric($want) && (float) $got <= (float) $want;
             case 'powershell_encoded': return $this->isEncodedPowershell((string) ($e->command_line ?? $got ?? ''));
             default: return false;
         }

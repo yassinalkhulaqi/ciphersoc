@@ -9,6 +9,7 @@ type AuthCtx = {
   permissions: string[];
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, password_confirmation: string) => Promise<void>;
   logout: () => Promise<void>;
   can: (perm: string) => boolean;
   refresh: () => Promise<void>;
@@ -41,6 +42,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await refresh();
   }, [refresh]);
 
+  const register = useCallback(async (name: string, email: string, password: string, password_confirmation: string) => {
+    const res = await api.post('/auth/register', { name, email, password, password_confirmation });
+    localStorage.setItem('ciphersoc_token', res.data.data.token);
+    setUser(res.data.data.user);
+    await refresh();
+  }, [refresh]);
+
   const logout = useCallback(async () => {
     try { await api.post('/auth/logout'); } catch { /* noop */ }
     localStorage.removeItem('ciphersoc_token');
@@ -48,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const can = useCallback((perm: string) => permissions.includes(perm) || user?.roles.includes('admin') === true, [permissions, user]);
-  const value = useMemo(() => ({ user, permissions, loading, login, logout, can, refresh }), [user, permissions, loading, login, logout, can, refresh]);
+  const value = useMemo(() => ({ user, permissions, loading, login, register, logout, can, refresh }), [user, permissions, loading, login, register, logout, can, refresh]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

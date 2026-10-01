@@ -34,5 +34,11 @@ pytest -q                        # unit tests
 | `CIPHERSOC_SPOOL` | `--spool` | `./spool/events.jsonl` |
 | `CIPHERSOC_AUTH_LOG` | `--auth-log` | `/var/log/auth.log` |
 | `CIPHERSOC_SYSLOG` | `--syslog` | `/var/log/syslog` |
+| `CIPHERSOC_FIM_PATHS` | `--fim-paths` | `` (comma-separated watchlist, e.g. `/etc/passwd,/etc/shadow`) |
+| `CIPHERSOC_FIM_STATE` | `--fim-state` | `./state/fim.json` |
+| `CIPHERSOC_METRICS` | `--no-metrics` (invert) | `true` |
+
+FIM baselines silently on first run, then emits `file_modified` on SHA256 change.
+Host metrics (`host_metrics` with load + mem) are sent once per cycle when enabled.
 
 State (agent id + api token) is stored in `./state/agent.json` with `0600` permissions.
