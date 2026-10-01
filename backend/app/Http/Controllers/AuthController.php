@@ -36,6 +36,30 @@ class AuthController extends Controller
         return ApiResponse::ok(null, 'Logged out');
     }
 
+    public function tokens(Request $r)
+    {
+        $tokens = $r->user()->tokens()->orderByDesc('id')->get(['id', 'name', 'abilities', 'last_used_at', 'created_at']);
+
+        return ApiResponse::ok($tokens);
+    }
+
+    public function createToken(Request $r)
+    {
+        $data = $r->validate(['name' => 'required|string|max:255', 'abilities' => 'sometimes|array']);
+        $token = $r->user()->createToken($data['name'], $data['abilities'] ?? ['*'])->plainTextToken;
+        AuditLogger::log('token.create', 'user', $r->user()->id, null, ['name' => $data['name']]);
+
+        return ApiResponse::ok(['token' => $token], 'API token created');
+    }
+
+    public function revokeToken(Request $r, string $id)
+    {
+        $r->user()->tokens()->where('id', $id)->delete();
+        AuditLogger::log('token.revoke', 'user', $r->user()->id, null, ['token_id' => $id]);
+
+        return ApiResponse::ok(null, 'Token revoked');
+    }
+
     public function me(Request $r)
     {
         $u = $r->user()->load('roles.permissions');

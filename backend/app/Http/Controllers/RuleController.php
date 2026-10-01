@@ -7,6 +7,7 @@ use App\Models\DetectionRule;
 use App\Models\DetectionRuleVersion;
 use App\Models\Event;
 use App\Services\Detection\DetectionEngine;
+use App\Services\Detection\SigmaConverter;
 use App\Support\ApiResponse;
 use App\Support\AuditLogger;
 use Illuminate\Http\Request;
@@ -87,6 +88,24 @@ class RuleController extends Controller
         }
 
         return ApiResponse::ok(['scanned' => $events->count(), 'matched' => $matched, 'samples' => $samples]);
+    }
+
+    public function importSigma(Request $r, SigmaConverter $converter)
+    {
+        $data = $r->validate(['yaml' => 'required|string|max:20000', 'dry_run' => 'sometimes|boolean', 'enabled' => 'sometimes|boolean']);
+        $converted = $converter->convert($data['yaml']);
+        if (! empty($data['dry_run'])) {
+            return ApiResponse::ok($converted, 'Sigma preview');
+        }
+        $rule = $converted['rule'];
+        $rule['rule_id'] = 'RL-'.strtoupper(Str::random(6));
+        $rule['created_by'] = $r->user()->id;
+        $rule['enabled'] = $data['enabled'] ?? true;
+        $rule['status'] = 'active';
+        $created = DetectionRule::create($rule);
+        AuditLogger::log('rule.sigma_import', 'rule', $created->id, null, $rule);
+
+        return ApiResponse::ok(['rule' => $created, 'warnings' => $converted['warnings']], 'Sigma rule imported');
     }
 
     private function validateRule(Request $r, bool $partial = false): array

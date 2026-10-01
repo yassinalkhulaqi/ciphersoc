@@ -10,6 +10,7 @@ import Incidents from './pages/Incidents';
 import IncidentDetail from './pages/IncidentDetail';
 import Events from './pages/Events';
 import Rules from './pages/Rules';
+import Playbooks from './pages/Playbooks';
 import Mitre from './pages/Mitre';
 import Iocs from './pages/Iocs';
 import ThreatIntel from './pages/ThreatIntel';
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="/incidents/:id" element={<Guard perm="incidents.view"><IncidentDetail /></Guard>} />
         <Route path="/events" element={<Guard perm="events.view"><Events /></Guard>} />
         <Route path="/rules" element={<Guard perm="rules.view"><Rules /></Guard>} />
+        <Route path="/playbooks" element={<Guard perm="playbooks.view"><Playbooks /></Guard>} />
         <Route path="/mitre" element={<Guard perm="dashboard.view"><Mitre /></Guard>} />
         <Route path="/iocs" element={<Guard perm="iocs.view"><Iocs /></Guard>} />
         <Route path="/threat-intel" element={<Guard perm="threatintel.view"><ThreatIntel /></Guard>} />

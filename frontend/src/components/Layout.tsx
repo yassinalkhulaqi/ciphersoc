@@ -12,6 +12,7 @@ const NAV: { to: string; label: string; perm?: string }[] = [
   { to: '/incidents', label: 'Incidents', perm: 'incidents.view' },
   { to: '/events', label: 'Events / Logs', perm: 'events.view' },
   { to: '/rules', label: 'Detection Rules', perm: 'rules.view' },
+  { to: '/playbooks', label: 'Playbooks', perm: 'playbooks.view' },
   { to: '/mitre', label: 'MITRE ATT&CK', perm: 'dashboard.view' },
   { to: '/iocs', label: 'IOCs', perm: 'iocs.view' },
   { to: '/threat-intel', label: 'Threat Intel', perm: 'threatintel.view' },
