@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Event;
 use App\Support\ApiResponse;
+use App\Support\SearchParser;
 use Illuminate\Http\Request;
 
 class EventController extends Controller
@@ -17,8 +18,14 @@ class EventController extends Controller
             }
         }
         if ($r->filled('search')) {
-            $s = $r->get('search');
-            $q->where(fn ($qq) => $qq->where('message', 'like', "%$s%")->orWhere('raw_log', 'like', "%$s%")->orWhere('command_line', 'like', "%$s%")->orWhere('hostname', 'like', "%$s%"));
+            $parsed = SearchParser::parse($r->get('search'), 'events');
+            foreach ($parsed['filters'] as $k => $v) {
+                $q->where($k, $v);
+            }
+            $s = $parsed['free'];
+            if ($s !== '') {
+                $q->where(fn ($qq) => $qq->where('message', 'like', "%$s%")->orWhere('raw_log', 'like', "%$s%")->orWhere('command_line', 'like', "%$s%")->orWhere('hostname', 'like', "%$s%"));
+            }
         }
         if ($r->filled('from')) {
             $q->where('event_timestamp', '>=', $r->get('from'));

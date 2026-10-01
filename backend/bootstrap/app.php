@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AgentAuth;
 use App\Http\Middleware\CheckPermission;
+use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -19,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'perm' => CheckPermission::class,
             'agent.auth' => AgentAuth::class,
         ]);
+        $middleware->append(SecurityHeaders::class);
         $middleware->validateCsrfTokens(except: ['api/*']);
     })
     ->withBroadcasting(__DIR__.'/../routes/channels.php', ['prefix' => 'api/v1', 'middleware' => ['auth:sanctum']])

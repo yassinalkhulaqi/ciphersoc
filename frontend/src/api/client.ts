@@ -7,6 +7,8 @@ export const api = axios.create({ baseURL, timeout: 20000 });
 api.interceptors.request.use((cfg) => {
   const token = localStorage.getItem('ciphersoc_token');
   if (token) cfg.headers.Authorization = `Bearer ${token}`;
+  // Idempotency/correlation id for backend log tracing.
+  cfg.headers['X-Request-ID'] = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`) as string;
   return cfg;
 });
 

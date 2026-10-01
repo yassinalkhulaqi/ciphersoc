@@ -3,8 +3,11 @@
 namespace App\Services\Ingestion;
 
 use App\Services\Ingestion\Normalizers\CefParser;
+use App\Services\Ingestion\Normalizers\EcsParser;
 use App\Services\Ingestion\Normalizers\GenericJsonParser;
+use App\Services\Ingestion\Normalizers\SuricataParser;
 use App\Services\Ingestion\Normalizers\SyslogParser;
+use App\Services\Ingestion\Normalizers\SysmonParser;
 use App\Services\Ingestion\Normalizers\WindowsEventParser;
 
 class EventNormalizer
@@ -25,6 +28,19 @@ class EventNormalizer
             }
         }
         $raw = is_array($input) ? $input : ['message' => (string) $input];
+        // ECS (filebeat/winlogbeat) and Suricata EVE take precedence when detected.
+        $ecs = new EcsParser;
+        if ($ecs->supports($raw)) {
+            return array_merge($generic->parse($raw), $ecs->parse($raw), ['parser' => 'ecs', 'raw_log' => json_encode($raw)]);
+        }
+        $suricata = new SuricataParser;
+        if ($suricata->supports($raw)) {
+            return array_merge($generic->parse($raw), $suricata->parse($raw), ['parser' => 'suricata', 'raw_log' => json_encode($raw)]);
+        }
+        $sysmon = new SysmonParser;
+        if ($sysmon->supports($raw)) {
+            return array_merge($generic->parse($raw), $sysmon->parse($raw), ['parser' => 'sysmon', 'raw_log' => json_encode($raw)]);
+        }
         if ($hint === 'windows' || isset($raw['EventID']) || isset($raw['EventId'])) {
             return array_merge($generic->parse($raw), (new WindowsEventParser)->parse($raw), ['parser' => 'windows_event', 'raw_log' => json_encode($raw)]);
         }
